@@ -1,0 +1,2 @@
+LABEL=root / ext4 defaults 0 0
+LABEL=MEPHI_DATA /data/mephi-web ext4 defaults,_netdev,nofail 0 0

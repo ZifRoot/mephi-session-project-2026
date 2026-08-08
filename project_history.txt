@@ -1,0 +1,259 @@
+ls
+# Создаём папку для артефактов (если не существует)
+mkdir -p ~/project_artifacts
+cd ~/project_artifacts
+# 1. Устанавливаем hostname
+sudo hostnamectl set-hostname mephi-2026.domain.local
+# Проверяем
+hostnamectl
+# 2. Загружаем модуль dummy (если ещё не загружен)
+sudo modprobe dummy
+# Проверяем, что модуль загружен
+lsmod | grep dummy
+# 3. Создаём интерфейс dummy0 с IP 192.168.1.100/24
+sudo ip link add dummy0 type dummy
+sudo ip addr add 192.168.1.100/24 dev dummy0
+sudo ip link set dummy0 up
+# 4. Добавляем на loopback адрес 192.168.1.1/32 (чтобы пинговать "шлюз")
+sudo ip addr add 192.168.1.1/32 dev lo
+# 5. Проверяем, что интерфейсы поднялись
+ip a show dummy0
+ip a show lo | grep 192.168.1.1
+# Создаём скрипт
+sudo tee /usr/local/bin/mephi-net-setup.sh > /dev/null << 'EOF'
+#!/bin/bash
+# Поднимаем dummy0 и добавляем IP на lo
+modprobe dummy
+ip link add dummy0 type dummy 2>/dev/null || true
+ip addr add 192.168.1.100/24 dev dummy0 2>/dev/null || true
+ip link set dummy0 up
+ip addr add 192.168.1.1/32 dev lo 2>/dev/null || true
+# (позже сюда добавим создание loop-устройства для диска)
+EOF
+
+sudo chmod +x /usr/local/bin/mephi-net-setup.sh
+# Создаём systemd-сервис
+sudo tee /etc/systemd/system/mephi-network.service > /dev/null << 'EOF'
+[Unit]
+Description=MEPHI network setup (dummy0, loopback IP, loop device)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mephi-net-setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Включаем сервис
+sudo systemctl enable mephi-network.service
+# Запускаем сейчас (если ещё не запускали вручную)
+sudo systemctl start mephi-network.service
+# Проверяем статус
+sudo systemctl status mephi-network.service
+# Пинг до шлюза (192.168.1.1) – идёт локально через lo
+ping -c 4 192.168.1.1
+# Пинг до 8.8.8.8 – идёт через реальный интерфейс (должен работать, если сеть настроена)
+ping -c 4 8.8.8.8
+{   echo "=== Ping to 192.168.1.1 ===";   ping -c 4 192.168.1.1;   echo "=== Ping to 8.8.8.8 ===";   ping -c 4 8.8.8.8; } > ~/project_artifacts/network_check.txt
+cat ~/project_artifacts/network_check.txt
+sudo dnf install -y nginx tcpdump libcap-ng-utils
+rpm -q nginx tcpdump libcap-ng-utils
+# Скачиваем в текущую папку (project_artifacts)
+sudo dnf download tcpdump --destdir=~/project_artifacts
+# Проверяем, что файл появился
+ls -l ~/project_artifacts/tcpdump*.rpm
+sudo dnf download tcpdump --destdir=~/project_artifacts
+# Переустановим пакет через rpm (для демонстрации)
+sudo rpm -ivh ~/project_artifacts/tcpdump-*.rpm --force
+ls -la ~/project_artifacts/
+sudo dnf download tcpdump --destdir=/root/project_artifacts
+# Переустановим пакет через rpm (для демонстрации)
+sudo rpm -ivh ~/project_artifacts/tcpdump-*.rpm --force
+sudo dd if=/dev/zero of=/tmp/mephi_data.img bs=1M count=512
+sudo losetup -fP /tmp/mephi_data.img
+# Узнаём имя (например, /dev/loop0)
+LOOP=$(sudo losetup -l | grep mephi_data | awk '{print $1}')
+echo "Loop device: $LOOP"
+sudo parted $LOOP mklabel msdos
+sudo parted $LOOP mkpart primary ext4 0% 100%
+sudo partprobe $LOOP
+# Проверяем, что появился /dev/loop0p1
+ls -l $LOOP*
+sudo mkfs.ext4 -L MEPHI_DATA ${LOOP}p1
+sudo mkdir -p /data/mephi-web
+sudo mount ${LOOP}p1 /data/mephi-web
+# Проверяем
+df -h /data/mephi-web
+echo "LABEL=MEPHI_DATA /data/mephi-web ext4 defaults,_netdev,nofail 0 0" | sudo tee -a /etc/fstab
+# Проверяем
+cat /etc/fstab | grep MEPHI_DATA
+cat /etc/fstab
+rpm -q tcpdump
+sudo tee /usr/local/bin/mephi-net-setup.sh > /dev/null << 'EOF'
+#!/bin/bash
+# Поднимаем dummy0 и добавляем IP на lo
+modprobe dummy
+ip link add dummy0 type dummy 2>/dev/null || true
+ip addr add 192.168.1.100/24 dev dummy0 2>/dev/null || true
+ip link set dummy0 up
+ip addr add 192.168.1.1/32 dev lo 2>/dev/null || true
+
+# Создаём loop-устройство для образа, если он существует
+if [ -f /tmp/mephi_data.img ]; then
+    losetup -fP /tmp/mephi_data.img 2>/dev/null || true
+    # Монтируем /data/mephi-web, если ещё не примонтировано
+    mount /data/mephi-web 2>/dev/null || true
+fi
+EOF
+
+sudo chmod +x /usr/local/bin/mephi-net-setup.sh
+cat /usr/local/bin/mephi-net-setup.sh 
+reboot
+sudo losetup -l
+mount | grep /data/mephi-web
+df -h /data/mephi-web
+sudo mount -a
+mount | grep /data/mephi-web
+# Переходим в папку артефактов
+cd ~/project_artifacts
+# Смотрим, что уже есть
+ls -la
+# Если нет fstab.txt – копируем
+sudo cp /etc/fstab ~/project_artifacts/fstab.txt
+# Проверяем наличие tcpdump.rpm
+ls -l tcpdump*.rpm
+# Показываем полный список с размерами
+ls -lh
+sudo systemctl enable --now nginx
+sudo systemctl status nginx
+id mephi-admin 2>/dev/null && echo "Пользователь mephi-admin существует" || echo "Пользователь mephi-admin не существует"
+getent group mephi-devs && echo "Группа mephi-devs существует" || echo "Группа mephi-devs не существует"
+sudo groupadd mephi-devs
+sudo useradd -m -G mephi-devs mephi-admin
+echo "P@ssw0rd2026" | sudo passwd --stdin mephi-admin
+id mephi-admin
+getent group mephi-devs
+sudo chown mephi-admin:mephi-devs /data/mephi-web
+sudo chmod 2775 /data/mephi-web
+ls -ld /data/mephi-web
+stat /data/mephi-web
+stat /data/mephi-web > ~/project_artifacts/permissions.txt
+{   id mephi-admin;   getent group mephi-devs; } > ~/project_artifacts/users_groups.txt
+getenforce
+sudo setenforce 1
+getenforce
+cat /proc/cmdline | grep -E "selinux|enforcing"
+getenforce
+cat /etc/selinux/config
+cat /proc/cmdline
+sudo sed -i 's/^SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config
+grep ^SELINUX= /etc/selinux/config
+cat /etc/selinux/config
+sudo reboot
+getenforce 
+# Назначаем правильный тип для веб-содержимого
+sudo chcon -R -t httpd_sys_content_t /data/mephi-web
+# Применяем контекст рекурсивно (на случай, если уже есть файлы)
+sudo restorecon -R /data/mephi-web
+# Проверяем контекст
+ls -Zd /data/mephi-web
+# Статус SELinux (уже Enforcing)
+getenforce > ~/project_artifacts/selinux_status.txt
+# Контекст директории
+ls -Zd /data/mephi-web > ~/project_artifacts/file_contexts.txt
+cat ~/project_artifacts/selinux_status.txt
+cat ~/project_artifacts/file_contexts.txt
+getcap /usr/sbin/tcpdump > ~/project_artifacts/tcpdump_capabilities.txt
+cat ~/project_artifacts/tcpdump_capabilities.txt
+getcap /usr/sbin/tcpdump 
+sudo dnf install -y policycoreutils-python-utils
+sudo semanage fcontext -a -t httpd_sys_content_t "/data/mephi-web(/.*)?"
+sudo restorecon -R /data/mephi-web
+ls -Zd /data/mephi-web
+sudo chmod u-s /usr/sbin/tcpdump
+sudo setcap cap_net_raw,cap_net_admin+ep /usr/sbin/tcpdump
+getcap /usr/sbin/tcpdump
+sudo -u mephi-admin tcpdump --help
+getenforce > ~/project_artifacts/selinux_status.txt
+ls -Zd /data/mephi-web > ~/project_artifacts/file_contexts.txt
+getcap /usr/sbin/tcpdump > ~/project_artifacts/tcpdump_capabilities.txt
+cat ~/project_artifacts/file_contexts.txt
+cat ~/project_artifacts/tcpdump_capabilities.txt
+sudo usermod -aG wheel mephi-admin
+id mephi-admin
+sudo -u mephi-admin mkdir -p /home/mephi-admin/.ssh
+sudo -u mephi-admin tee /home/mephi-admin/.ssh/authorized_keys > /dev/null << 'EOF'
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCbgvRZ2guO2KV8oFbTOhZnTZOEBkd3dJkCwC9tjURj1kgGRPNMzObk1K2N/4CTc+9z61Icd60MjMb7U5XfLtWHSisQ2EHuJqh4DL1wTgjgxu8FemkU+vqvbfq1Gl/Reyv+lVSxGvZjj2V8ApjrouWaoZdDO14jM1wEnZe8ivhlJTbOyQMdD5iCRgcp1IRIcLLUqxRo6Fa0Yxsr8AYKHvouKj681Vbe/LvuNumyOXxyT+kkZ+BUcm0Nlzc2gu9ioMtQjjAGwBO5MVmT3DmlVM4vmwKUqkUhiaZi4mkHNU90cTcs2dEQL0vZgnOXVdTI3twr0IC1VklRiracJUFjGAFJ myvpn
+EOF
+
+sudo chmod 700 /home/mephi-admin/.ssh
+sudo chmod 600 /home/mephi-admin/.ssh/authorized_keys
+sudo chown -R mephi-admin:mephi-admin /home/mephi-admin/.ssh
+sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+# 1. Создаём файл со списком запрещённых пользователей
+echo "root" | sudo tee /etc/ssh/denied_users
+# 2. Добавляем модуль в /etc/pam.d/sshd (в начало файла)
+sudo sed -i '1i auth required pam_listfile.so onerr=fail item=user sense=deny file=/etc/ssh/denied_users' /etc/pam.d/sshd
+# 3. Добавляем модуль в /etc/pam.d/login (для локальной консоли)
+sudo sed -i '1i auth required pam_listfile.so onerr=fail item=user sense=deny file=/etc/ssh/denied_users' /etc/pam.d/login
+# 4. Проверяем, что строки добавились
+head -n 1 /etc/pam.d/sshd
+head -n 1 /etc/pam.d/login
+sudo systemctl restart sshd
+ls
+exlr
+exlt
+exit
+cat  /etc/ssh/denied_users
+cat /etc/pam.d/sshd | head -10
+cat /etc/pam.d/sshd
+grep -i usepam /etc/ssh/sshd_config
+ls -l /etc/ssh/denied_users
+sudo journalctl -u sshd -n 20
+reboot
+cat  /etc/ssh/denied_users
+head -n 1 /etc/pam.d/sshd | od -c
+grep -i usepam /etc/ssh/sshd_config
+grep -i permitrootlogin /etc/ssh/sshd_config
+# Добавляем модуль в account (в начало файла)
+sudo sed -i '1i account required pam_listfile.so onerr=fail item=user sense=deny file=/etc/ssh/denied_users' /etc/pam.d/sshd
+# Проверяем, что строка добавилась
+head -n 2 /etc/pam.d/sshd
+# Перезапускаем sshd
+sudo systemctl restart sshd
+exit
+ls
+cd ~
+ls
+echo "" > /etc/ssh/denied_users
+exit
+sudo -u mephi-admin tee /data/mephi-web/index.html > /dev/null << 'EOF'
+Hello from Student: 368130
+EOF
+
+curl -s http://192.168.1.100 > ~/project_artifacts/curl_output.txt
+cp /data/mephi-web/index.html ~/project_artifacts/
+sudo journalctl -u nginx --since "5 minutes ago" > ~/project_artifacts/nginx_recent_logs.txt
+curl -s http://192.168.1.100 
+sudo sed -i 's|root /usr/share/nginx/html;|root /data/mephi-web;|' /etc/nginx/nginx.conf
+sudo nginx -t
+curl -s http://192.168.1.100 
+sudo nginx -t
+curl -s http://192.168.1.100 
+exit
+reboot
+sudo chcon -R -t httpd_sys_content_t /data/mephi-web
+sudo restorecon -R /data/mephi-web
+# Сохраняем вывод curl
+curl -s http://192.168.1.100 > ~/project_artifacts/curl_output.txt
+# Копируем index.html (уже есть, но на всякий случай)
+cp /data/mephi-web/index.html ~/project_artifacts/
+# Собираем логи nginx за последние 5 минут
+sudo journalctl -u nginx --since "5 minutes ago" > ~/project_artifacts/nginx_recent_logs.txt
+curl http://192.168.1.100
+history -a
