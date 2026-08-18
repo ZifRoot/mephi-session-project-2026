@@ -1,0 +1,25 @@
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet 192.168.1.1/32 scope global lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute 
+       valid_lft forever preferred_lft forever
+2: dummy0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/ether d2:af:55:b0:a9:ec brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.100/24 scope global dummy0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5405:87ff:fe19:337f/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+3: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 00:16:3e:25:37:1b brd ff:ff:ff:ff:ff:ff
+    inet 46.161.40.206/24 brd 46.161.40.255 scope global dynamic noprefixroute eth0
+       valid_lft 21599754sec preferred_lft 21599754sec
+    inet6 2a05:b40:0:664:0:10:6207:bd42/64 scope global noprefixroute 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::fedd:f8e5:b7c4:1ec6/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+default via 46.161.40.1 dev eth0 proto dhcp src 46.161.40.206 metric 100 
+46.161.40.0/24 dev eth0 proto kernel scope link src 46.161.40.206 metric 100 
+192.168.1.0/24 dev dummy0 proto kernel scope link src 192.168.1.100 

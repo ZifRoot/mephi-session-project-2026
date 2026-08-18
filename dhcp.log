@@ -1,0 +1,40 @@
+nohup: ignoring input
+Интерфейс: eth0
+NetworkManager, соединение: eth0
+Сохраняем текущие настройки...
+Сохранено: method=auto, addr=46.161.40.206/24, gateway=--, dns=--
+Переключаем на DHCP...
+Connection 'eth0' successfully deactivated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/5)
+Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/6)
+Ожидаем получения динамического IP (до 30 секунд)...
+Получен динамический IP: 46.161.40.206
+Запускаем ./generate_artifacts.sh
+Генерация артефактов в /root/r...
+✓ history.out создан
+✓ ip.out создан
+✓ ping.out создан
+✓ stat.out создан
+✓ getcap.out создан
+✓ dnf.out создан
+✓ httpd_logs создан (последние 20 строк лога)
+✓ Системные файлы скопированы
+✓ index.html скопирован
+⚠️ Не забудьте создать скриншот mephi-screenshot.png и поместить его в эту папку!
+
+Все артефакты сгенерированы. Проверьте, что все файлы присутствуют:
+-rw-r--r--. 1 root root  1215 Aug 19 03:44 dnf.out
+-rw-r--r--. 1 root root    93 Aug 19 03:44 fstab
+-rw-r--r--. 1 root root    47 Aug 19 03:44 getcap.out
+-rw-r--r--. 1 root root 26915 Aug 19 03:44 history.out
+-rw-r--r--. 1 root root  2787 Aug 19 03:44 httpd_logs
+-rw-r--r--. 1 root root    27 Aug 19 03:44 index.html
+-rw-r--r--. 1 root root  1539 Aug 19 03:44 ip.out
+-rw-r--r--. 1 root root  2314 Aug 19 03:44 passwd
+-rw-r--r--. 1 root root   415 Aug 19 03:44 ping.out
+-rw-r--r--. 1 root root  2686 Aug 19 03:44 pwquality.conf
+----------. 1 root root  1087 Aug 19 03:44 shadow
+-rw-r--r--. 1 root root   424 Aug 19 03:44 stat.out
+Восстановление не требуется (метод не был manual)
+=== Готово ===
+Артефакты сгенерированы, статический IP восстановлен (если был изменён).
+Проверьте содержимое ip.out: grep dynamic ip.out

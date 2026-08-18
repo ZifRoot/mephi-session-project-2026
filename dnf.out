@@ -1,0 +1,15 @@
+ID Command line                            Date and time       Action(s) Altered
+14 dnf update -y --exclude=kernel*,systemd 2026-08-18 15:59:37               157
+13 dnf update -y                           2026-08-18 15:28:02               458
+12 dnf install -y httpd                    2026-08-17 09:03:48                10
+11 dnf install -y git                      2026-08-08 17:09:53                68
+10 dnf install -y nginx tcpdump libcap-ng- 2026-08-08 09:58:47                 9
+ 9 yum remove binutils ctags gdb-headless  2026-05-04 07:59:57                 7
+ 8 yum remove iscsi-*                      2026-05-04 07:59:31                 4
+ 7 yum remove alsa-sof-firmware amd-gpu-fi 2026-05-04 07:58:57                14
+ 6 yum remove cockpit*                     2026-05-04 07:58:30                36
+ 5 yum remove abrt*                        2026-05-04 07:58:16                51
+ 4 yum remove firewalld                    2026-05-04 07:56:01                 7
+ 3 yum install wget net-tools gnupg2 unzip 2026-05-04 07:54:46                 1
+ 2 dnf remove zram-generator-defaults      2026-05-04 07:50:49                 2
+ 1                                         2026-05-04 07:42:07               706

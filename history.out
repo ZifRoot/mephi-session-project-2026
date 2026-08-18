@@ -1,0 +1,637 @@
+ls
+# Создаём папку для артефактов (если не существует)
+mkdir -p ~/project_artifacts
+cd ~/project_artifacts
+# 1. Устанавливаем hostname
+sudo hostnamectl set-hostname mephi-2026.domain.local
+# Проверяем
+hostnamectl
+# 2. Загружаем модуль dummy (если ещё не загружен)
+sudo modprobe dummy
+# Проверяем, что модуль загружен
+lsmod | grep dummy
+# 3. Создаём интерфейс dummy0 с IP 192.168.1.100/24
+sudo ip link add dummy0 type dummy
+sudo ip addr add 192.168.1.100/24 dev dummy0
+sudo ip link set dummy0 up
+# 4. Добавляем на loopback адрес 192.168.1.1/32 (чтобы пинговать "шлюз")
+sudo ip addr add 192.168.1.1/32 dev lo
+# 5. Проверяем, что интерфейсы поднялись
+ip a show dummy0
+ip a show lo | grep 192.168.1.1
+# Создаём скрипт
+sudo tee /usr/local/bin/mephi-net-setup.sh > /dev/null << 'EOF'
+#!/bin/bash
+# Поднимаем dummy0 и добавляем IP на lo
+modprobe dummy
+ip link add dummy0 type dummy 2>/dev/null || true
+ip addr add 192.168.1.100/24 dev dummy0 2>/dev/null || true
+ip link set dummy0 up
+ip addr add 192.168.1.1/32 dev lo 2>/dev/null || true
+# (позже сюда добавим создание loop-устройства для диска)
+EOF
+
+sudo chmod +x /usr/local/bin/mephi-net-setup.sh
+# Создаём systemd-сервис
+sudo tee /etc/systemd/system/mephi-network.service > /dev/null << 'EOF'
+[Unit]
+Description=MEPHI network setup (dummy0, loopback IP, loop device)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mephi-net-setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Включаем сервис
+sudo systemctl enable mephi-network.service
+# Запускаем сейчас (если ещё не запускали вручную)
+sudo systemctl start mephi-network.service
+# Проверяем статус
+sudo systemctl status mephi-network.service
+# Пинг до шлюза (192.168.1.1) – идёт локально через lo
+ping -c 4 192.168.1.1
+# Пинг до 8.8.8.8 – идёт через реальный интерфейс (должен работать, если сеть настроена)
+ping -c 4 8.8.8.8
+{   echo "=== Ping to 192.168.1.1 ===";   ping -c 4 192.168.1.1;   echo "=== Ping to 8.8.8.8 ===";   ping -c 4 8.8.8.8; } > ~/project_artifacts/network_check.txt
+cat ~/project_artifacts/network_check.txt
+sudo dnf install -y nginx tcpdump libcap-ng-utils
+rpm -q nginx tcpdump libcap-ng-utils
+# Скачиваем в текущую папку (project_artifacts)
+sudo dnf download tcpdump --destdir=~/project_artifacts
+# Проверяем, что файл появился
+ls -l ~/project_artifacts/tcpdump*.rpm
+sudo dnf download tcpdump --destdir=~/project_artifacts
+# Переустановим пакет через rpm (для демонстрации)
+sudo rpm -ivh ~/project_artifacts/tcpdump-*.rpm --force
+ls -la ~/project_artifacts/
+sudo dnf download tcpdump --destdir=/root/project_artifacts
+# Переустановим пакет через rpm (для демонстрации)
+sudo rpm -ivh ~/project_artifacts/tcpdump-*.rpm --force
+sudo dd if=/dev/zero of=/tmp/mephi_data.img bs=1M count=512
+sudo losetup -fP /tmp/mephi_data.img
+# Узнаём имя (например, /dev/loop0)
+LOOP=$(sudo losetup -l | grep mephi_data | awk '{print $1}')
+echo "Loop device: $LOOP"
+sudo parted $LOOP mklabel msdos
+sudo parted $LOOP mkpart primary ext4 0% 100%
+sudo partprobe $LOOP
+# Проверяем, что появился /dev/loop0p1
+ls -l $LOOP*
+sudo mkfs.ext4 -L MEPHI_DATA ${LOOP}p1
+sudo mkdir -p /data/mephi-web
+sudo mount ${LOOP}p1 /data/mephi-web
+# Проверяем
+df -h /data/mephi-web
+echo "LABEL=MEPHI_DATA /data/mephi-web ext4 defaults,_netdev,nofail 0 0" | sudo tee -a /etc/fstab
+# Проверяем
+cat /etc/fstab | grep MEPHI_DATA
+cat /etc/fstab
+rpm -q tcpdump
+sudo tee /usr/local/bin/mephi-net-setup.sh > /dev/null << 'EOF'
+#!/bin/bash
+# Поднимаем dummy0 и добавляем IP на lo
+modprobe dummy
+ip link add dummy0 type dummy 2>/dev/null || true
+ip addr add 192.168.1.100/24 dev dummy0 2>/dev/null || true
+ip link set dummy0 up
+ip addr add 192.168.1.1/32 dev lo 2>/dev/null || true
+
+# Создаём loop-устройство для образа, если он существует
+if [ -f /tmp/mephi_data.img ]; then
+    losetup -fP /tmp/mephi_data.img 2>/dev/null || true
+    # Монтируем /data/mephi-web, если ещё не примонтировано
+    mount /data/mephi-web 2>/dev/null || true
+fi
+EOF
+
+sudo chmod +x /usr/local/bin/mephi-net-setup.sh
+cat /usr/local/bin/mephi-net-setup.sh 
+reboot
+sudo losetup -l
+mount | grep /data/mephi-web
+df -h /data/mephi-web
+sudo mount -a
+mount | grep /data/mephi-web
+# Переходим в папку артефактов
+cd ~/project_artifacts
+# Смотрим, что уже есть
+ls -la
+# Если нет fstab.txt – копируем
+sudo cp /etc/fstab ~/project_artifacts/fstab.txt
+# Проверяем наличие tcpdump.rpm
+ls -l tcpdump*.rpm
+# Показываем полный список с размерами
+ls -lh
+sudo systemctl enable --now nginx
+sudo systemctl status nginx
+id mephi-admin 2>/dev/null && echo "Пользователь mephi-admin существует" || echo "Пользователь mephi-admin не существует"
+getent group mephi-devs && echo "Группа mephi-devs существует" || echo "Группа mephi-devs не существует"
+sudo groupadd mephi-devs
+sudo useradd -m -G mephi-devs mephi-admin
+echo "P@ssw0rd2026" | sudo passwd --stdin mephi-admin
+id mephi-admin
+getent group mephi-devs
+sudo chown mephi-admin:mephi-devs /data/mephi-web
+sudo chmod 2775 /data/mephi-web
+ls -ld /data/mephi-web
+stat /data/mephi-web
+stat /data/mephi-web > ~/project_artifacts/permissions.txt
+{   id mephi-admin;   getent group mephi-devs; } > ~/project_artifacts/users_groups.txt
+getenforce
+sudo setenforce 1
+getenforce
+cat /proc/cmdline | grep -E "selinux|enforcing"
+getenforce
+cat /etc/selinux/config
+cat /proc/cmdline
+sudo sed -i 's/^SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config
+grep ^SELINUX= /etc/selinux/config
+cat /etc/selinux/config
+sudo reboot
+getenforce 
+# Назначаем правильный тип для веб-содержимого
+sudo chcon -R -t httpd_sys_content_t /data/mephi-web
+# Применяем контекст рекурсивно (на случай, если уже есть файлы)
+sudo restorecon -R /data/mephi-web
+# Проверяем контекст
+ls -Zd /data/mephi-web
+# Статус SELinux (уже Enforcing)
+getenforce > ~/project_artifacts/selinux_status.txt
+# Контекст директории
+ls -Zd /data/mephi-web > ~/project_artifacts/file_contexts.txt
+cat ~/project_artifacts/selinux_status.txt
+cat ~/project_artifacts/file_contexts.txt
+getcap /usr/sbin/tcpdump > ~/project_artifacts/tcpdump_capabilities.txt
+cat ~/project_artifacts/tcpdump_capabilities.txt
+getcap /usr/sbin/tcpdump 
+sudo dnf install -y policycoreutils-python-utils
+sudo semanage fcontext -a -t httpd_sys_content_t "/data/mephi-web(/.*)?"
+sudo restorecon -R /data/mephi-web
+ls -Zd /data/mephi-web
+sudo chmod u-s /usr/sbin/tcpdump
+sudo setcap cap_net_raw,cap_net_admin+ep /usr/sbin/tcpdump
+getcap /usr/sbin/tcpdump
+sudo -u mephi-admin tcpdump --help
+getenforce > ~/project_artifacts/selinux_status.txt
+ls -Zd /data/mephi-web > ~/project_artifacts/file_contexts.txt
+getcap /usr/sbin/tcpdump > ~/project_artifacts/tcpdump_capabilities.txt
+cat ~/project_artifacts/file_contexts.txt
+cat ~/project_artifacts/tcpdump_capabilities.txt
+sudo usermod -aG wheel mephi-admin
+id mephi-admin
+sudo -u mephi-admin mkdir -p /home/mephi-admin/.ssh
+sudo -u mephi-admin tee /home/mephi-admin/.ssh/authorized_keys > /dev/null << 'EOF'
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCbgvRZ2guO2KV8oFbTOhZnTZOEBkd3dJkCwC9tjURj1kgGRPNMzObk1K2N/4CTc+9z61Icd60MjMb7U5XfLtWHSisQ2EHuJqh4DL1wTgjgxu8FemkU+vqvbfq1Gl/Reyv+lVSxGvZjj2V8ApjrouWaoZdDO14jM1wEnZe8ivhlJTbOyQMdD5iCRgcp1IRIcLLUqxRo6Fa0Yxsr8AYKHvouKj681Vbe/LvuNumyOXxyT+kkZ+BUcm0Nlzc2gu9ioMtQjjAGwBO5MVmT3DmlVM4vmwKUqkUhiaZi4mkHNU90cTcs2dEQL0vZgnOXVdTI3twr0IC1VklRiracJUFjGAFJ myvpn
+EOF
+
+sudo chmod 700 /home/mephi-admin/.ssh
+sudo chmod 600 /home/mephi-admin/.ssh/authorized_keys
+sudo chown -R mephi-admin:mephi-admin /home/mephi-admin/.ssh
+sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+# 1. Создаём файл со списком запрещённых пользователей
+echo "root" | sudo tee /etc/ssh/denied_users
+# 2. Добавляем модуль в /etc/pam.d/sshd (в начало файла)
+sudo sed -i '1i auth required pam_listfile.so onerr=fail item=user sense=deny file=/etc/ssh/denied_users' /etc/pam.d/sshd
+# 3. Добавляем модуль в /etc/pam.d/login (для локальной консоли)
+sudo sed -i '1i auth required pam_listfile.so onerr=fail item=user sense=deny file=/etc/ssh/denied_users' /etc/pam.d/login
+# 4. Проверяем, что строки добавились
+head -n 1 /etc/pam.d/sshd
+head -n 1 /etc/pam.d/login
+sudo systemctl restart sshd
+ls
+exlr
+exlt
+exit
+cat  /etc/ssh/denied_users
+cat /etc/pam.d/sshd | head -10
+cat /etc/pam.d/sshd
+grep -i usepam /etc/ssh/sshd_config
+ls -l /etc/ssh/denied_users
+sudo journalctl -u sshd -n 20
+reboot
+cat  /etc/ssh/denied_users
+head -n 1 /etc/pam.d/sshd | od -c
+grep -i usepam /etc/ssh/sshd_config
+grep -i permitrootlogin /etc/ssh/sshd_config
+# Добавляем модуль в account (в начало файла)
+sudo sed -i '1i account required pam_listfile.so onerr=fail item=user sense=deny file=/etc/ssh/denied_users' /etc/pam.d/sshd
+# Проверяем, что строка добавилась
+head -n 2 /etc/pam.d/sshd
+# Перезапускаем sshd
+sudo systemctl restart sshd
+exit
+ls
+cd ~
+ls
+echo "" > /etc/ssh/denied_users
+exit
+sudo -u mephi-admin tee /data/mephi-web/index.html > /dev/null << 'EOF'
+Hello from Student: 368130
+EOF
+
+curl -s http://192.168.1.100 > ~/project_artifacts/curl_output.txt
+cp /data/mephi-web/index.html ~/project_artifacts/
+sudo journalctl -u nginx --since "5 minutes ago" > ~/project_artifacts/nginx_recent_logs.txt
+curl -s http://192.168.1.100 
+sudo sed -i 's|root /usr/share/nginx/html;|root /data/mephi-web;|' /etc/nginx/nginx.conf
+sudo nginx -t
+curl -s http://192.168.1.100 
+sudo nginx -t
+curl -s http://192.168.1.100 
+exit
+reboot
+sudo chcon -R -t httpd_sys_content_t /data/mephi-web
+sudo restorecon -R /data/mephi-web
+# Сохраняем вывод curl
+curl -s http://192.168.1.100 > ~/project_artifacts/curl_output.txt
+# Копируем index.html (уже есть, но на всякий случай)
+cp /data/mephi-web/index.html ~/project_artifacts/
+# Собираем логи nginx за последние 5 минут
+sudo journalctl -u nginx --since "5 minutes ago" > ~/project_artifacts/nginx_recent_logs.txt
+curl http://192.168.1.100
+history -a
+cp ~/.bash_history ~/project_artifacts/project_history.txt
+cd ~/project_artifacts
+ls -lh
+mv "Screenshot 2026-08-08 233749.png" mephi-nginx-screenshot.png
+strings mephi-nginx-screenshot.png
+git init
+sudo dnf install -y git
+git --version
+git init
+git config --global user.name "Yakov Norev"
+git config --global user.email "yakov.norev@gmail.com"
+git branch -M main
+ssh-keygen -t ed25519 -C "ваш-email@example.com"
+cat ~/.ssh/id_ed25519.pub
+git remote add origin git@github.com:ZifRoot/mephi-session-project-2026.git
+git add .
+git commit -m "Add MEPHI session project 2026 files"
+git branch -M main
+git push -u origin main
+mount | grep /data-mephi
+df -h /data-mephi
+sudo setenforce 0
+sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
+# Проверяем, что модуль userdir загружен (должен быть в /etc/httpd/conf.modules.d/00-base.conf)
+sudo httpd -M | grep userdir
+# Если нет – добавляем
+sudo sed -i 's/^#LoadModule userdir_module/LoadModule userdir_module/' /etc/httpd/conf.modules.d/00-base.conf
+# Создаём/обновляем конфиг userdir
+sudo tee /etc/httpd/conf.d/userdir.conf > /dev/null << 'EOF'
+<IfModule mod_userdir.c>
+    UserDir public_html
+</IfModule>
+EOF
+
+# Перезапускаем Apache
+sudo systemctl restart httpd
+# Создаём пользователя
+sudo useradd -m user1
+echo "P@ssw0rd2026" | sudo passwd --stdin user1
+# Устанавливаем срок действия пароля 90 дней
+sudo chage -M 90 user1
+sudo chage -l user1
+# Добавляем параметр в /etc/security/pwquality.conf
+echo "minlen = 10" | sudo tee -a /etc/security/pwquality.conf
+# Проверяем
+grep minlen /etc/security/pwquality.conf
+# Создаём директорию и файл
+sudo -u user1 mkdir -p /home/user1/public_html
+echo "Hello from Student: <ВАШ_НОМЕР>" | sudo -u user1 tee /home/user1/public_html/index.html
+# Устанавливаем права
+sudo chmod 755 /home/user1
+sudo chmod 755 /home/user1/public_html
+sudo chmod 644 /home/user1/public_html/index.html
+curl http://localhost/~user1
+ls -ld /home/user1
+ls -ld /home/user1/public_html
+ls -l /home/user1/public_html/index.html
+# Проверяем, что модуль загружен
+sudo httpd -M | grep userdir
+sudo sed -i 's/^#LoadModule userdir_module/LoadModule userdir_module/' /etc/httpd/conf.modules.d/00-base.conf
+cat /etc/httpd/conf.d/userdir.conf
+sudo tee /etc/httpd/conf.d/userdir.conf > /dev/null << 'EOF'
+<IfModule mod_userdir.c>
+    UserDir public_html
+</IfModule>
+EOF
+
+sudo tail -20 /var/log/httpd/error_log
+curl http://localhost/~user1
+getenforce
+curl http://localhost
+sudo journalctl -u httpd --since "5 minutes ago" > httpd_logs
+ls
+#!/bin/bash
+# Цвета для вывода
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
+echo "=========================================="
+echo "   ПРОВЕРКА ВЫПОЛНЕНИЯ ЗАДАНИЯ"
+echo "=========================================="
+# Счётчик ошибок
+ERRORS=0
+# Функция проверки с выводом
+check() {     if eval "$2"; then         echo -e "${GREEN}✓${NC} $1";     else         echo -e "${RED}✗${NC} $1";         ((ERRORS++));     fi; }
+# ------------------- Раздел 1 -------------------
+echo -e "\n${YELLOW}--- Раздел 1. Установка дистрибутива ---${NC}"
+# 1.1 Сетевая настройка (DHCP)
+check "Сетевой интерфейс имеет IP-адрес (не loopback)"     "ip -4 a show | grep -E 'inet ' | grep -v '127.0.0.1' | grep -q ."
+check "Пинг до 8.8.8.8 проходит"     "ping -c 1 -W 2 8.8.8.8 &>/dev/null"
+# 1.2 Файловая система
+check "Раздел /data-mephi примонтирован"     "mount | grep -q '/data-mephi'"
+check "В /etc/fstab есть запись с LABEL=MEPHI_DATA"     "grep -q 'LABEL=MEPHI_DATA' /etc/fstab"
+# 1.3 Пользователь mephi-admin
+check "Пользователь mephi-admin существует"     "id mephi-admin &>/dev/null"
+check "Пользователь mephi-admin в группе wheel"     "groups mephi-admin | grep -q wheel"
+# ------------------- Раздел 2 -------------------
+echo -e "\n${YELLOW}--- Раздел 2. Управление программным обеспечением ---${NC}"
+# 2.1 Обновление дистрибутива (проверяем наличие истории dnf)
+check "История dnf сохранена (dnf.out)"     "[ -f ~/project_artifacts/dnf.out ] || [ -f ~/dnf.out ]"
+# 2.2 Установка пакетов
+check "Установлен Apache (httpd)"     "rpm -q httpd &>/dev/null"
+check "Установлен tcpdump"     "rpm -q tcpdump &>/dev/null"
+check "Установлен libcap-ng-utils"     "rpm -q libcap-ng-utils &>/dev/null"
+# ------------------- Раздел 3 -------------------
+echo -e "\n${YELLOW}--- Раздел 3. Управление сервисами ---${NC}"
+# 3.1 Apache запущен и включен
+check "Apache запущен (active)"     "systemctl is-active httpd &>/dev/null"
+check "Apache включен в автозагрузку"     "systemctl is-enabled httpd &>/dev/null"
+# 3.2 mod_userdir
+check "Модуль mod_userdir загружен"     "httpd -M 2>/dev/null | grep -q userdir"
+check "Конфигурация userdir присутствует"     "[ -f /etc/httpd/conf.d/userdir.conf ]"
+# 3.3 Журналирование
+check "Логи Apache за 5 минут сохранены (httpd_logs)"     "[ -f ~/project_artifacts/httpd_logs ]"
+# ------------------- Раздел 4 -------------------
+echo -e "\n${YELLOW}--- Раздел 4. Управление доступом ---${NC}"
+# 4.1 Пользователь user1 и срок действия пароля
+check "Пользователь user1 существует"     "id user1 &>/dev/null"
+check "Срок действия пароля user1 установлен на 90 дней"     "chage -l user1 2>/dev/null | grep -q 'Maximum.*: 90'"
+# 4.2 Capabilities для tcpdump
+check "SUID-бит снят с tcpdump"     "[ ! -u /usr/sbin/tcpdump ]"
+check "Capabilities добавлены (cap_net_raw, cap_net_admin)"     "getcap /usr/sbin/tcpdump 2>/dev/null | grep -q 'cap_net_raw,cap_net_admin+ep'"
+# ------------------- Раздел 5 -------------------
+echo -e "\n${YELLOW}--- Раздел 5. Аутентификация ---${NC}"
+# 5.1 Блокировка root
+check "Root заблокирован через PAM (sshd)"     "grep -q 'pam_listfile.so.*denied_users' /etc/pam.d/sshd"
+check "Root заблокирован через PAM (login)"     "grep -q 'pam_listfile.so.*denied_users' /etc/pam.d/login"
+check "Файл denied_users существует и содержит root"     "[ -f /etc/ssh/denied_users ] && grep -q '^root$' /etc/ssh/denied_users"
+# 5.2 Минимальная длина пароля
+check "Минимальная длина пароля установлена в 10"     "grep -q 'minlen = 10' /etc/security/pwquality.conf"
+# ------------------- Раздел 6 -------------------
+echo -e "\n${YELLOW}--- Раздел 6. Тестирование ---${NC}"
+# 6.1 Страница user1
+check "Директория public_html существует"     "[ -d /home/user1/public_html ]"
+check "Файл index.html существует"     "[ -f /home/user1/public_html/index.html ]"
+# Проверяем содержимое страницы (ожидаем "Hello from Student")
+check "Страница user1 доступна через curl и содержит правильный текст"     "curl -s http://localhost/~user1 | grep -q 'Hello from Student'"
+# 6.2 Скриншот
+check "Скриншот mephi-screenshot.png сохранён"     "[ -f ~/project_artifacts/mephi-screenshot.png ]"
+# ------------------- Раздел 7 -------------------
+echo -e "\n${YELLOW}--- Раздел 7. Публикация на GitHub ---${NC}"
+# 7.1 Артефакты
+FILES=(history.out ip.out ping.out stat.out getcap.out dnf.out)
+for file in "${FILES[@]}"; do     check "Артефакт $file присутствует"         "[ -f ~/project_artifacts/$file ]"; done
+# Проверяем, что системные файлы скопированы
+check "Скопирован /etc/fstab"     "[ -f ~/project_artifacts/fstab ]"
+check "Скопирован /etc/passwd"     "[ -f ~/project_artifacts/passwd ]"
+check "Скопирован /etc/shadow"     "[ -f ~/project_artifacts/shadow ]"
+check "Скопирован /etc/security/pwquality.conf"     "[ -f ~/project_artifacts/pwquality.conf ]"
+# 7.2–7.4 Проверка Git репозитория (опционально)
+if [ -d ~/project_artifacts/.git ]; then     echo -e "${GREEN}✓${NC} Репозиторий Git инициализирован"; else     echo -e "${RED}✗${NC} Репозиторий Git не инициализирован";     ((ERRORS++)); fi
+# ------------------- Итог -------------------
+echo ""
+if [ $ERRORS -eq 0 ]; then     echo -e "${GREEN}ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ УСПЕШНО""{NC}"; else     echo -e "${RED}ОБНАРУЖЕНО $ERRORS ОШИБОК. ПРОВЕРЬТЕ ПУНКТЫ ВЫШЕ.${NC}"; fi
+echo "=========================================="
+cat > ~/check_all.sh << 'EOF'
+#!/bin/bash
+
+# Цвета
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "========================================="
+echo "  Проверка выполнения проекта MEPHI"
+echo "  (функциональность + артефакты)"
+echo "========================================="
+echo
+
+# Функция для вывода результата проверки
+check() {
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ $1${NC}"
+    else
+        echo -e "${RED}❌ $1${NC}"
+        FAILED=1
+    fi
+}
+
+# Функция для проверки наличия файла-артефакта
+check_file() {
+    if [ -f "$1" ]; then
+        echo -e "${GREEN}✅ $2${NC}"
+    else
+        echo -e "${RED}❌ $2 (файл отсутствует)${NC}"
+        FAILED=1
+    fi
+}
+
+FAILED=0
+
+# ---- 1. Сеть ----
+echo "--- 1. Сетевая настройка (DHCP) ---"
+ping -c 1 8.8.8.8 &>/dev/null
+check "Пинг до 8.8.8.8 проходит"
+ip a | grep -E "eth0|ens3|enp" | grep "inet " &>/dev/null
+check "Интерфейс имеет IP по DHCP"
+
+# ---- 2. Файловая система ----
+echo "--- 2. Файловая система (MEPHI_DATA) ---"
+sudo blkid | grep -q "MEPHI_DATA"
+check "Раздел с меткой MEPHI_DATA существует"
+mount | grep -q "/data-mephi"
+check "Точка монтирования /data-mephi примонтирована"
+grep -q "MEPHI_DATA" /etc/fstab
+check "Запись в /etc/fstab присутствует"
+
+# ---- 3. Пользователи ----
+echo "--- 3. Пользователи и права ---"
+id mephi-admin &>/dev/null
+check "Пользователь mephi-admin существует"
+groups mephi-admin | grep -q wheel
+check "mephi-admin в группе wheel (администратор)"
+id user1 &>/dev/null
+check "Пользователь user1 существует"
+sudo chage -l user1 | grep -q "Password expires.*$(date -d '+90 days' +'%b %d, %Y')" 2>/dev/null
+check "Срок действия пароля user1 установлен (90 дней)"
+
+# ---- 4. Пакеты ----
+echo "--- 4. Установка пакетов ---"
+rpm -q httpd &>/dev/null
+check "Apache (httpd) установлен"
+rpm -q tcpdump &>/dev/null
+check "tcpdump установлен"
+rpm -q libcap-ng-utils &>/dev/null
+check "libcap-ng-utils установлен"
+
+# ---- 5. Веб-сервер Apache ----
+echo "--- 5. Веб-сервер Apache ---"
+systemctl is-active --quiet httpd
+check "Apache запущен"
+systemctl is-enabled --quiet httpd
+check "Apache включён в автозагрузку"
+sudo httpd -M 2>/dev/null | grep -q userdir_module
+check "Модуль mod_userdir загружен"
+# Проверяем доступность страницы ~user1
+if curl -s -o /dev/null -w "%{http_code}" http://localhost/~user1 | grep -q 200; then
+    echo -e "${GREEN}✅ Страница ~user1 доступна (HTTP 200)${NC}"
+else
+    echo -e "${RED}❌ Страница ~user1 не доступна (код != 200)${NC}"
+    FAILED=1
+fi
+
+# ---- 6. Capabilities tcpdump ----
+echo "--- 6. Capabilities tcpdump ---"
+getcap /usr/sbin/tcpdump | grep -q "cap_net_admin,cap_net_raw+ep"
+check "capabilities для tcpdump настроены"
+
+# ---- 7. Блокировка root ----
+echo "--- 7. Блокировка root (PAM) ---"
+grep -q "pam_listfile.so" /etc/pam.d/sshd
+check "PAM-модуль в sshd"
+grep -q "pam_listfile.so" /etc/pam.d/login
+check "PAM-модуль в login"
+[ -f /etc/ssh/denied_users ] && grep -q "^root$" /etc/ssh/denied_users
+check "Файл denied_users содержит root"
+
+# ---- 8. Минимальная длина пароля ----
+echo "--- 8. Минимальная длина пароля ---"
+grep -q "^minlen = 10" /etc/security/pwquality.conf
+check "minlen = 10 в pwquality.conf"
+
+# ---- 9. Артефакты проекта ----
+echo "--- 9. Проверка наличия артефактов (кроме history.out) ---"
+cd ~/project_artifacts 2>/dev/null || mkdir -p ~/project_artifacts
+check_file "ip.out" "ip.out"
+check_file "ping.out" "ping.out"
+check_file "fstab" "fstab (копия /etc/fstab)"
+check_file "passwd" "passwd (копия /etc/passwd)"
+check_file "shadow" "shadow (копия /etc/shadow)"
+check_file "dnf.out" "dnf.out"
+check_file "stat.out" "stat.out"
+check_file "httpd_logs" "httpd_logs"
+check_file "getcap.out" "getcap.out"
+check_file "pwquality.conf" "pwquality.conf (копия)"
+check_file "index.html" "index.html"
+check_file "mephi-screenshot.png" "mephi-screenshot.png"
+
+# ---- Итог ----
+echo
+echo "========================================="
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}✅ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ УСПЕШНО!${NC}"
+    echo "Теперь можно сохранить историю команд:"
+    echo "  history > ~/project_artifacts/history.out"
+    echo "и запушить на GitHub."
+else
+    echo -e "${RED}❌ ЕСТЬ ОШИБКИ. Исправьте их перед сдачей.${NC}"
+fi
+echo "========================================="
+EOF
+
+chmod +x ~/check_all.sh
+~/check_all.sh 
+cat > ~/fix_password_expiry.sh << 'EOF'
+#!/bin/bash
+echo "Устанавливаем срок действия пароля user1 = 90 дней"
+sudo chage -M 90 user1
+sudo chage -l user1 | grep "Password expires"
+EOF
+
+chmod +x ~/fix_password_expiry.sh
+~/fix_password_expiry.sh
+~/check_all.sh 
+cat > ~/fix_tcpdump_cap.sh << 'EOF'
+#!/bin/bash
+echo "Снимаем SUID-бит с tcpdump"
+sudo chmod u-s /usr/sbin/tcpdump
+
+echo "Добавляем capabilities"
+sudo setcap cap_net_raw,cap_net_admin+ep /usr/sbin/tcpdump
+
+echo "Проверяем"
+getcap /usr/sbin/tcpdump
+EOF
+
+chmod +x ~/fix_tcpdump_cap.sh
+~/fix_tcpdump_cap.sh
+~/check_all.sh 
+cat > ~/fix_denied_users.sh << 'EOF'
+#!/bin/bash
+echo "Создаём файл /etc/ssh/denied_users с root"
+echo "root" | sudo tee /etc/ssh/denied_users
+
+echo "Проверяем содержимое"
+cat /etc/ssh/denied_users
+
+echo "Перезапускаем sshd"
+sudo systemctl restart sshd
+EOF
+
+chmod +x ~/fix_denied_users.sh
+~/fix_denied_users.sh
+~/check_all.sh 
+git initbasename
+git init
+cd r
+git init
+ git config --global init.defaultBranch main
+git init
+curl -L curl http://localhost/~user1
+exit
+dnf history list
+dnf history list > ~/dnf.out
+dnf update -y --exclude=kernel*,systemd*,selinux-policy*
+dnf history list > ~/dnf1.out
+./check_mephi.sh
+~/check_all.sh 
+./check_mephi.sh > check_mephi.log
+clear
+cd r
+./check_mephi.sh > check_mephi.log
+chmod +x *.sh
+./generate_artifacts.sh 
+./check_mephi.sh > check_mephi.log
+sudo systemctl restart httpd
+curl http://localhost/~user1
+curl -L http://localhost/~user1
+./generate_artifacts.sh 
+./check_mephi.sh > check_mephi.log
+cat ~/.bash_history > history.out
+./check_mephi.sh > check_mephi.log
+./generate_artifacts.sh 
+./check_mephi.sh > check_mephi.log
+./dhcp_and_artifacts.sh 
+screen -S dhcp
+nohup sudo ./dhcp_and_artifacts.sh > dhcp.log 2>&1 &
+tail -f dhcp.log  # следить за логом
+./check_mephi.sh > check_mephi.log
+exit
+curl -L -s http://localhost/~user1
+cd r/
+./dhcp_and_artifacts.sh 
+ls
+./dhcp_and_artifacts.sh 
+exit
