@@ -1,0 +1,9 @@
+  File: /home/user1
+  Size: 4096      	Blocks: 8          IO Block: 4096   directory
+Device: 8,2	Inode: 43872       Links: 3
+Access: (0755/drwxr-xr-x)  Uid: ( 1001/   user1)   Gid: ( 1002/   user1)
+Context: unconfined_u:object_r:user_home_dir_t:s0
+Access: 2026-08-18 21:31:51.245765679 +0530
+Modify: 2026-08-17 15:39:39.499110846 +0530
+Change: 2026-08-17 15:39:39.594111542 +0530
+ Birth: 2026-08-17 15:39:17.786952010 +0530
